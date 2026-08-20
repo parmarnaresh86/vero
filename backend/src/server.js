@@ -5,6 +5,10 @@ import multer from 'multer';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import {
   dbPath,
   saveImport,
@@ -45,7 +49,8 @@ import { clean, extractWorkbook } from './excelExtractors.js';
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 const PORT = process.env.PORT || 4200;
-const gujaratiFontPath = process.env.GUJARATI_FONT_PATH || 'C:\\Windows\\Fonts\\Nirmala.ttf';
+const bundledGujaratiFontPath = join(__dirname, 'fonts', 'NotoSansGujarati-Regular.ttf');
+const gujaratiFontPath = process.env.GUJARATI_FONT_PATH || bundledGujaratiFontPath;
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
