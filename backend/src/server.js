@@ -17,6 +17,7 @@ import {
   getTaxpayer,
   setPaidStatus,
   setTaxpayerMobile,
+  findTaxpayerByMobile,
   getImportHistory,
   getSourceRows,
   addMessage,
@@ -282,6 +283,20 @@ app.get('/api/dashboard', requirePermission('dashboard.view'), (req, res) => {
 
 app.get('/api/taxpayers', requirePermission('billing.view'), (req, res) => {
   res.json(getTaxpayers(req.query, req.user));
+});
+
+// Public (no login) - used by the WhatsApp bot so citizens can self-serve
+// their bill without needing an admin account.
+app.get('/api/villages/public', (req, res) => {
+  res.json(getVillages({}, null).map((village) => ({ id: village.id, name: village.name })));
+});
+
+app.get('/api/taxpayers/lookup', (req, res) => {
+  const mobile = clean(req.query.mobile);
+  if (!/^\d{10}$/.test(mobile)) return res.status(400).json({ error: 'Mobile must be a 10-digit number.' });
+  const taxpayer = findTaxpayerByMobile(mobile, req.query.villageId);
+  if (!taxpayer) return res.status(404).json({ error: 'Mobile number not registered.' });
+  res.json(taxpayer);
 });
 
 app.get('/api/imports', requirePermission('excel.view'), (req, res) => {

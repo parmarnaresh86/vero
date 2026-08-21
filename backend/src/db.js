@@ -446,6 +446,17 @@ export function getTaxpayers(query = {}, user = null) {
   return db.prepare(`SELECT * FROM taxpayers ${where} ORDER BY CAST(property_no AS INTEGER), property_no`).all(...params).map(mapTaxpayer);
 }
 
+export function findTaxpayerByMobile(mobile, villageId) {
+  const clauses = ['mobile = ?'];
+  const params = [mobile];
+  if (villageId) {
+    clauses.push('village_id = ?');
+    params.push(Number(villageId));
+  }
+  const row = db.prepare(`SELECT * FROM taxpayers WHERE ${clauses.join(' AND ')} LIMIT 1`).get(...params);
+  return row ? mapTaxpayer(row) : null;
+}
+
 export function getTaxpayer(propertyNo, query = {}, user = null) {
   query = scopedQuery(query, user);
   const clauses = ['property_no = ?'];
