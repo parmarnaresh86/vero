@@ -201,10 +201,15 @@ function App() {
   }
 
   async function updateMobile(item, mobile) {
-    await api(`/taxpayers/${item.propertyNo}/mobile`, {
-      method: 'PATCH',
-      body: JSON.stringify({ mobile })
-    });
+    try {
+      await api(`/taxpayers/${item.propertyNo}/mobile`, {
+        method: 'PATCH',
+        body: JSON.stringify({ mobile })
+      });
+      setNotice(`Mobile number updated for property ${item.propertyNo}.`);
+    } catch (error) {
+      setNotice(`Failed to update mobile number: ${error.message}`);
+    }
     await load();
   }
 
