@@ -300,7 +300,7 @@ function App() {
 
         {page === 'dashboard' && <DashboardPage dashboard={dashboard} />}
         {page === 'import' && <ImportPage importFile={importFile} importHistory={importHistory} villages={villages} activeVillageId={activeVillageId} />}
-        {excelReportPages[page] && <ExcelReportPage pageInfo={excelReportPages[page]} sourceRows={sourceRows} />}
+        {excelReportPages[page] && <ExcelReportPage pageInfo={excelReportPages[page]} sourceRows={sourceRows} updateMobile={updateMobile} canUpdate={has(user, 'billing.update')} />}
         {page === 'billing' && <BillingPage taxpayers={taxpayers} filters={filters} setFilters={setFilters} areas={areas} categories={categories} togglePaid={togglePaid} canUpdate={has(user, 'billing.update')} sendBillWhatsApp={sendBillWhatsApp} canSend={has(user, 'broadcast.send')} updateMobile={updateMobile} />}
         {page === 'broadcast' && <BroadcastPage message={message} setMessage={setMessage} sendMessages={sendMessages} notice={notice} filters={broadcastFilters} setFilters={setBroadcastFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
         {page === 'whatsapp-status' && <WhatsappStatusPage data={whatsappStatus} filters={statusFilters} setFilters={setStatusFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
@@ -400,7 +400,10 @@ function ImportHistory({ importHistory }) {
   );
 }
 
-function ExcelReportPage({ pageInfo, sourceRows }) {
+function ExcelReportPage({ pageInfo, sourceRows, updateMobile, canUpdate }) {
+  const onEditMobile = pageInfo.kind === 'mobile'
+    ? (row, mobile) => updateMobile({ propertyNo: row.property_no }, mobile)
+    : null;
   return (
     <section className="band">
       <div className="sectionTitle"><FileSpreadsheet size={22} /><h2>{pageInfo.label}</h2></div>
@@ -408,7 +411,7 @@ function ExcelReportPage({ pageInfo, sourceRows }) {
         <strong>{pageInfo.description}</strong>
         <span>{sourceRows.length} rows loaded from SQLite</span>
       </div>
-      <DataTable columns={sourceColumns[pageInfo.kind] || []} rows={sourceRows} />
+      <DataTable columns={sourceColumns[pageInfo.kind] || []} rows={sourceRows} onEditMobile={onEditMobile} canUpdate={canUpdate} />
     </section>
   );
 }
@@ -830,7 +833,7 @@ function TablePagination({ pageNo, setPageNo, total }) {
   );
 }
 
-function DataTable({ columns, rows }) {
+function DataTable({ columns, rows, onEditMobile, canUpdate }) {
   const [columnFilters, setColumnFilters] = useState({});
   const [pageNo, setPageNo] = useState(1);
   const filteredRows = useMemo(() => filterRowsByColumns(rows, columns, columnFilters), [rows, columns, columnFilters]);
@@ -845,7 +848,13 @@ function DataTable({ columns, rows }) {
           <tbody>
             {pagedRows.map((row, index) => (
               <tr key={row.id || row.propertyNo || index}>
-                {columns.map((column) => <td key={`${column.key}-${row.id || index}`}>{column.type === 'money' ? currency(row[column.key]) : row[column.key] || '-'}</td>)}
+                {columns.map((column) => (
+                  <td key={`${column.key}-${row.id || index}`}>
+                    {column.key === 'mobile' && onEditMobile
+                      ? <EditableMobile value={row.mobile} canUpdate={canUpdate} onSave={(mobile) => onEditMobile(row, mobile)} />
+                      : (column.type === 'money' ? currency(row[column.key]) : row[column.key] || '-')}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
