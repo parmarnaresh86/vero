@@ -305,7 +305,7 @@ function App() {
 
         {page === 'dashboard' && <DashboardPage dashboard={dashboard} />}
         {page === 'import' && <ImportPage importFile={importFile} importHistory={importHistory} villages={villages} activeVillageId={activeVillageId} />}
-        {excelReportPages[page] && <ExcelReportPage pageInfo={excelReportPages[page]} sourceRows={sourceRows} updateMobile={updateMobile} canUpdate={has(user, 'billing.update')} />}
+        {excelReportPages[page] && <ExcelReportPage pageInfo={excelReportPages[page]} sourceRows={sourceRows} taxpayers={taxpayers} updateMobile={updateMobile} canUpdate={has(user, 'billing.update')} />}
         {page === 'billing' && <BillingPage taxpayers={taxpayers} filters={filters} setFilters={setFilters} areas={areas} categories={categories} togglePaid={togglePaid} canUpdate={has(user, 'billing.update')} sendBillWhatsApp={sendBillWhatsApp} canSend={has(user, 'broadcast.send')} updateMobile={updateMobile} />}
         {page === 'broadcast' && <BroadcastPage message={message} setMessage={setMessage} sendMessages={sendMessages} notice={notice} filters={broadcastFilters} setFilters={setBroadcastFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
         {page === 'whatsapp-status' && <WhatsappStatusPage data={whatsappStatus} filters={statusFilters} setFilters={setStatusFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
@@ -405,10 +405,23 @@ function ImportHistory({ importHistory }) {
   );
 }
 
-function ExcelReportPage({ pageInfo, sourceRows, updateMobile, canUpdate }) {
+function ExcelReportPage({ pageInfo, sourceRows, taxpayers, updateMobile, canUpdate }) {
   const onEditMobile = pageInfo.kind === 'mobile'
     ? (row, mobile) => updateMobile({ propertyNo: row.property_no }, mobile)
     : null;
+
+  // Mobile Detail shows rows from the frozen Excel import log (excel_rows),
+  // but editing writes to the live taxpayers table - overlay the current
+  // live mobile so the display reflects edits instead of the original import.
+  const displayRows = useMemo(() => {
+    if (pageInfo.kind !== 'mobile') return sourceRows;
+    const liveMobileByPropertyNo = new Map(taxpayers.map((item) => [String(item.propertyNo), item.mobile]));
+    return sourceRows.map((row) => ({
+      ...row,
+      mobile: liveMobileByPropertyNo.get(String(row.property_no)) ?? row.mobile
+    }));
+  }, [sourceRows, taxpayers, pageInfo.kind]);
+
   return (
     <section className="band">
       <div className="sectionTitle"><FileSpreadsheet size={22} /><h2>{pageInfo.label}</h2></div>
@@ -416,7 +429,7 @@ function ExcelReportPage({ pageInfo, sourceRows, updateMobile, canUpdate }) {
         <strong>{pageInfo.description}</strong>
         <span>{sourceRows.length} rows loaded from SQLite</span>
       </div>
-      <DataTable columns={sourceColumns[pageInfo.kind] || []} rows={sourceRows} onEditMobile={onEditMobile} canUpdate={canUpdate} />
+      <DataTable columns={sourceColumns[pageInfo.kind] || []} rows={displayRows} onEditMobile={onEditMobile} canUpdate={canUpdate} />
     </section>
   );
 }
