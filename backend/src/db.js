@@ -209,6 +209,7 @@ function ensureColumn(table, column, definition) {
 
 ensureColumn('messages', 'user_id', 'INTEGER DEFAULT 0');
 ensureColumn('messages', 'village_id', 'INTEGER DEFAULT 0');
+ensureColumn('messages', 'wamid', "TEXT DEFAULT ''");
 ensureColumn('excel_imports', 'user_id', 'INTEGER DEFAULT 1');
 ensureColumn('excel_imports', 'village_id', 'INTEGER DEFAULT 1');
 ensureColumn('excel_rows', 'user_id', 'INTEGER DEFAULT 1');
@@ -522,8 +523,13 @@ export function getSourceRows(kind, query = {}, user = null) {
 }
 
 export function addMessage(row) {
-  db.prepare('INSERT INTO messages (user_id, village_id, property_no, mobile, message, status, detail, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(row.userId || 0, row.villageId || 0, row.propertyNo || '', row.mobile || '', row.message || '', row.status || '', typeof row.detail === 'string' ? row.detail : JSON.stringify(row.detail || ''), row.sentAt);
+  db.prepare('INSERT INTO messages (user_id, village_id, property_no, mobile, message, status, detail, sent_at, wamid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(row.userId || 0, row.villageId || 0, row.propertyNo || '', row.mobile || '', row.message || '', row.status || '', typeof row.detail === 'string' ? row.detail : JSON.stringify(row.detail || ''), row.sentAt, row.wamid || '');
+}
+
+export function updateMessageStatusByWamid(wamid, status, detail) {
+  db.prepare('UPDATE messages SET status = ?, detail = ? WHERE wamid = ?')
+    .run(status, typeof detail === 'string' ? detail : JSON.stringify(detail || ''), wamid);
 }
 
 export function getMessages(query = {}, user = null) {

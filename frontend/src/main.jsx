@@ -200,6 +200,16 @@ function App() {
     await load();
   }
 
+  async function sendBillWhatsApp(item) {
+    try {
+      const result = await api(`/bills/${item.propertyNo}/send`, { method: 'POST' });
+      setNotice(result.status === 'sent' ? `WhatsApp bill sent to ${item.mobile}.` : `WhatsApp send status: ${result.status} - ${JSON.stringify(result.detail)}`);
+    } catch (error) {
+      setNotice(`Failed to send WhatsApp bill: ${error.message}`);
+    }
+    await load();
+  }
+
   async function sendMessages() {
     const result = await api('/messages/send', {
       method: 'POST',
@@ -283,7 +293,7 @@ function App() {
         {page === 'dashboard' && <DashboardPage dashboard={dashboard} />}
         {page === 'import' && <ImportPage importFile={importFile} importHistory={importHistory} villages={villages} activeVillageId={activeVillageId} />}
         {excelReportPages[page] && <ExcelReportPage pageInfo={excelReportPages[page]} sourceRows={sourceRows} />}
-        {page === 'billing' && <BillingPage taxpayers={taxpayers} filters={filters} setFilters={setFilters} areas={areas} categories={categories} togglePaid={togglePaid} canUpdate={has(user, 'billing.update')} />}
+        {page === 'billing' && <BillingPage taxpayers={taxpayers} filters={filters} setFilters={setFilters} areas={areas} categories={categories} togglePaid={togglePaid} canUpdate={has(user, 'billing.update')} sendBillWhatsApp={sendBillWhatsApp} canSend={has(user, 'broadcast.send')} />}
         {page === 'broadcast' && <BroadcastPage message={message} setMessage={setMessage} sendMessages={sendMessages} notice={notice} filters={broadcastFilters} setFilters={setBroadcastFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
         {page === 'whatsapp-status' && <WhatsappStatusPage data={whatsappStatus} filters={statusFilters} setFilters={setStatusFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
         {page === 'reports' && <ReportsPage taxpayers={taxpayers} reports={reports} filters={filters} user={user} />}
@@ -395,7 +405,13 @@ function ExcelReportPage({ pageInfo, sourceRows }) {
   );
 }
 
-function BillingPage({ taxpayers, filters, setFilters, areas, categories, togglePaid, canUpdate }) {
+function BillingPage({ taxpayers, filters, setFilters, areas, categories, togglePaid, canUpdate, sendBillWhatsApp, canSend }) {
+  const [sendingId, setSendingId] = useState('');
+  async function handleSend(item) {
+    setSendingId(item.propertyNo);
+    await sendBillWhatsApp(item);
+    setSendingId('');
+  }
   const [columnFilters, setColumnFilters] = useState({});
   const [pageNo, setPageNo] = useState(1);
   const columns = [
@@ -427,7 +443,18 @@ function BillingPage({ taxpayers, filters, setFilters, areas, categories, toggle
                 <td>{item.mobile || '-'}</td>
                 <td>{currency(item.pendingTax || item.currentTax)}</td>
                 <td><button disabled={!canUpdate} className={item.paid ? 'status paid' : 'status unpaid'} onClick={() => togglePaid(item)}>{item.paid ? 'Paid' : 'Unpaid'}</button></td>
-                <td className="actions"><a className="iconButton" href={`${API}/bills/${item.propertyNo}.pdf`} target="_blank"><ReceiptText size={17} /></a><button className="iconButton" onClick={() => window.open(`${API}/bills/${item.propertyNo}.pdf`, '_blank')}><Printer size={17} /></button></td>
+                <td className="actions">
+                  <a className="iconButton" href={`${API}/bills/${item.propertyNo}.pdf`} target="_blank"><ReceiptText size={17} /></a>
+                  <button className="iconButton" onClick={() => window.open(`${API}/bills/${item.propertyNo}.pdf`, '_blank')}><Printer size={17} /></button>
+                  <button
+                    className="iconButton"
+                    disabled={!canSend || !item.mobile || sendingId === item.propertyNo}
+                    title={item.mobile ? 'Send bill via WhatsApp' : 'No mobile number on file'}
+                    onClick={() => handleSend(item)}
+                  >
+                    <Send size={17} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

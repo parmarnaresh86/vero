@@ -20,6 +20,7 @@ import {
   getSourceRows,
   addMessage,
   getMessages,
+  updateMessageStatusByWamid,
   getWhatsappStatus,
   getWhatsappSummary,
   getWhatsappStatusScoped,
@@ -175,6 +176,74 @@ async function sendWhatsAppMessage({ taxpayer, message }) {
   return { status: 'delivered', detail: await response.json() };
 }
 
+function normalizeIndianMobile(mobile) {
+  const digits = String(mobile || '').replace(/\D/g, '');
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
+
+async function sendBillWhatsApp(taxpayer) {
+  const settings = getSettings();
+  const token = settings.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = settings.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const templateName = settings.whatsapp_template_name || process.env.WHATSAPP_TEMPLATE_NAME || 'bill_pdf_notification';
+  const languageCode = settings.whatsapp_language_code || process.env.WHATSAPP_LANGUAGE_CODE || 'gu';
+  const backendUrl = process.env.BACKEND_PUBLIC_URL || '';
+
+  if (!token || !phoneNumberId) {
+    return { status: 'pending', detail: 'WhatsApp credentials are not configured.' };
+  }
+  if (!backendUrl) {
+    return { status: 'failed', detail: 'BACKEND_PUBLIC_URL is not configured, cannot build a public bill link.' };
+  }
+
+  const to = normalizeIndianMobile(taxpayer.mobile);
+  if (!to) {
+    return { status: 'failed', detail: 'No valid mobile number for this taxpayer.' };
+  }
+
+  const village = taxpayer.village || process.env.VILLAGE_NAME || 'ગ્રામપંચાયત';
+  const amount = taxpayer.pendingTax || taxpayer.currentTax || taxpayer.demandTotal || 0;
+  const link = `${backendUrl}/api/bills/${encodeURIComponent(taxpayer.propertyNo)}.pdf`;
+
+  const response = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: [
+          {
+            type: 'header',
+            parameters: [{ type: 'document', document: { link, filename: `bill-${taxpayer.propertyNo}.pdf` } }]
+          },
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: taxpayer.holderName || 'ગ્રાહક' },
+              { type: 'text', text: String(amount) },
+              { type: 'text', text: village }
+            ]
+          }
+        ]
+      }
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { status: 'failed', detail: data };
+  }
+  return { status: 'sent', detail: data, wamid: data?.messages?.[0]?.id || '' };
+}
+
 function currentUser(req) {
   const id = req.header('x-user-id') || req.query.userId;
   return id ? getUser(id) : null;
@@ -259,6 +328,33 @@ app.get('/api/bills/:propertyNo.pdf', (req, res) => {
   const taxpayer = getTaxpayer(req.params.propertyNo, req.query, currentUser(req));
   if (!taxpayer) return res.status(404).json({ error: 'Taxpayer not found.' });
   makeBillPdf(taxpayer, res);
+});
+
+app.post('/api/bills/:propertyNo/send', requirePermission('broadcast.send'), async (req, res) => {
+  const taxpayer = getTaxpayer(req.params.propertyNo, req.query, req.user);
+  if (!taxpayer) return res.status(404).json({ error: 'Taxpayer not found.' });
+  if (!taxpayer.mobile) return res.status(400).json({ error: 'This taxpayer has no mobile number on file.' });
+
+  const settings = getSettings();
+  const isSuperAdmin = req.user.permissions.includes('superadmin.view_all');
+  const packageLimit = isSuperAdmin ? 0 : (getEffectiveMessageLimit(req.user) || Number(req.user.messageLimit || settings.daily_message_limit || 0));
+  const sentInPackage = getSentCountForPackage(req.user.id);
+  if (packageLimit > 0 && sentInPackage + 1 > packageLimit) {
+    return res.status(429).json({ error: `WhatsApp package limit exceeded. Limit ${packageLimit}, already used ${sentInPackage}. Use recharge coupon for more messages.` });
+  }
+
+  const result = await sendBillWhatsApp(taxpayer);
+  const row = {
+    userId: req.user.id,
+    villageId: taxpayer.villageId,
+    propertyNo: taxpayer.propertyNo,
+    mobile: taxpayer.mobile,
+    message: `Bill PDF (${settings.whatsapp_template_name || 'bill_pdf_notification'})`,
+    ...result,
+    sentAt: new Date().toISOString()
+  };
+  addMessage(row);
+  res.json(row);
 });
 
 app.post('/api/messages/send', requirePermission('broadcast.send'), async (req, res) => {
@@ -363,6 +459,32 @@ app.post('/api/admin/settings', requirePermission('admin.manage'), (req, res) =>
 
 app.post('/api/admin/coupons', requirePermission('admin.manage'), (req, res) => {
   res.json(createCoupon(req.body));
+});
+
+// Meta calls this to verify the webhook URL when you configure it in the app dashboard.
+app.get('/api/webhook/whatsapp', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  const expected = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+
+  if (mode === 'subscribe' && expected && token === expected) {
+    res.status(200).send(challenge);
+  } else {
+    res.status(403).end();
+  }
+});
+
+// Meta posts delivery/read/failed status updates here for messages we sent.
+app.post('/api/webhook/whatsapp', (req, res) => {
+  res.status(200).end();
+
+  const statuses = req.body?.entry?.[0]?.changes?.[0]?.value?.statuses || [];
+  for (const status of statuses) {
+    if (status.id) {
+      updateMessageStatusByWamid(status.id, status.status, status.errors || status);
+    }
+  }
 });
 
 app.listen(PORT, () => {
