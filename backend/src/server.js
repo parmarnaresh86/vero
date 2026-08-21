@@ -151,8 +151,8 @@ async function makeTaxpayerReportWorkbook(rows) {
 
 async function sendWhatsAppMessage({ taxpayer, message }) {
   const settings = getSettings();
-  const token = settings.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = settings.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = (settings.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
+  const phoneNumberId = (settings.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
   if (!token || !phoneNumberId) {
     return { status: 'pending', detail: 'WhatsApp credentials are not configured.' };
   }
@@ -185,11 +185,11 @@ function normalizeIndianMobile(mobile) {
 
 async function sendBillWhatsApp(taxpayer) {
   const settings = getSettings();
-  const token = settings.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = settings.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const templateName = settings.whatsapp_template_name || process.env.WHATSAPP_TEMPLATE_NAME || 'bill_pdf_notification';
-  const languageCode = settings.whatsapp_language_code || process.env.WHATSAPP_LANGUAGE_CODE || 'gu';
-  const backendUrl = process.env.BACKEND_PUBLIC_URL || '';
+  const token = (settings.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
+  const phoneNumberId = (settings.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
+  const templateName = (settings.whatsapp_template_name || process.env.WHATSAPP_TEMPLATE_NAME || 'bill_pdf_notification').trim();
+  const languageCode = (settings.whatsapp_language_code || process.env.WHATSAPP_LANGUAGE_CODE || 'gu').trim();
+  const backendUrl = (process.env.BACKEND_PUBLIC_URL || '').trim().replace(/\/$/, '');
 
   if (!token || !phoneNumberId) {
     return { status: 'pending', detail: 'WhatsApp credentials are not configured.' };
