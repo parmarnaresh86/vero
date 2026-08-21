@@ -490,6 +490,17 @@ td span {
   width: 38px;
 }
 
+.editableMobile {
+  border-bottom: 1px dashed #7a9b85;
+  cursor: pointer;
+  padding-bottom: 1px;
+}
+
+.editableMobile:hover {
+  background: #eaf1eb;
+  border-bottom-color: #1e3c2b;
+}
+
 .primary {
   background: #27684b;
   border-radius: 8px;
