@@ -463,6 +463,13 @@ export function setPaidStatus(propertyNo, paid, query = {}, user = null) {
   return getTaxpayer(propertyNo, query, user);
 }
 
+export function setTaxpayerMobile(propertyNo, mobile, query = {}, user = null) {
+  query = scopedQuery(query, user);
+  db.prepare('UPDATE taxpayers SET mobile = ?, updated_at = ? WHERE property_no = ? AND user_id = COALESCE(?, user_id) AND village_id = COALESCE(?, village_id)')
+    .run(mobile, new Date().toISOString(), propertyNo, query.userId || null, query.villageId || null);
+  return getTaxpayer(propertyNo, query, user);
+}
+
 export function getDashboard(query = {}, user = null) {
   query = scopedQuery(query, user);
   const { where, params } = filterSql(query);

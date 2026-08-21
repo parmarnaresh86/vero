@@ -16,6 +16,7 @@ import {
   getTaxpayers,
   getTaxpayer,
   setPaidStatus,
+  setTaxpayerMobile,
   getImportHistory,
   getSourceRows,
   addMessage,
@@ -320,6 +321,14 @@ app.post('/api/import/:kind', requirePermission('excel.import'), upload.single('
 
 app.patch('/api/taxpayers/:propertyNo/status', requirePermission('billing.update'), (req, res) => {
   const taxpayer = setPaidStatus(req.params.propertyNo, Boolean(req.body.paid), req.body, req.user);
+  if (!taxpayer) return res.status(404).json({ error: 'Taxpayer not found.' });
+  res.json(taxpayer);
+});
+
+app.patch('/api/taxpayers/:propertyNo/mobile', requirePermission('billing.update'), (req, res) => {
+  const mobile = clean(req.body.mobile);
+  if (!/^\d{10}$/.test(mobile)) return res.status(400).json({ error: 'Mobile must be a 10-digit number.' });
+  const taxpayer = setTaxpayerMobile(req.params.propertyNo, mobile, req.body, req.user);
   if (!taxpayer) return res.status(404).json({ error: 'Taxpayer not found.' });
   res.json(taxpayer);
 });

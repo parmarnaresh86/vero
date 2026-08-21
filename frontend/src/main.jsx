@@ -200,6 +200,14 @@ function App() {
     await load();
   }
 
+  async function updateMobile(item, mobile) {
+    await api(`/taxpayers/${item.propertyNo}/mobile`, {
+      method: 'PATCH',
+      body: JSON.stringify({ mobile })
+    });
+    await load();
+  }
+
   async function sendBillWhatsApp(item) {
     try {
       const result = await api(`/bills/${item.propertyNo}/send`, { method: 'POST' });
@@ -293,7 +301,7 @@ function App() {
         {page === 'dashboard' && <DashboardPage dashboard={dashboard} />}
         {page === 'import' && <ImportPage importFile={importFile} importHistory={importHistory} villages={villages} activeVillageId={activeVillageId} />}
         {excelReportPages[page] && <ExcelReportPage pageInfo={excelReportPages[page]} sourceRows={sourceRows} />}
-        {page === 'billing' && <BillingPage taxpayers={taxpayers} filters={filters} setFilters={setFilters} areas={areas} categories={categories} togglePaid={togglePaid} canUpdate={has(user, 'billing.update')} sendBillWhatsApp={sendBillWhatsApp} canSend={has(user, 'broadcast.send')} />}
+        {page === 'billing' && <BillingPage taxpayers={taxpayers} filters={filters} setFilters={setFilters} areas={areas} categories={categories} togglePaid={togglePaid} canUpdate={has(user, 'billing.update')} sendBillWhatsApp={sendBillWhatsApp} canSend={has(user, 'broadcast.send')} updateMobile={updateMobile} />}
         {page === 'broadcast' && <BroadcastPage message={message} setMessage={setMessage} sendMessages={sendMessages} notice={notice} filters={broadcastFilters} setFilters={setBroadcastFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
         {page === 'whatsapp-status' && <WhatsappStatusPage data={whatsappStatus} filters={statusFilters} setFilters={setStatusFilters} emptyFilters={emptyAdvancedFilters} areas={areas} categories={categories} />}
         {page === 'reports' && <ReportsPage taxpayers={taxpayers} reports={reports} filters={filters} user={user} />}
@@ -405,7 +413,36 @@ function ExcelReportPage({ pageInfo, sourceRows }) {
   );
 }
 
-function BillingPage({ taxpayers, filters, setFilters, areas, categories, togglePaid, canUpdate, sendBillWhatsApp, canSend }) {
+function EditableMobile({ value, canUpdate, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+
+  if (!editing) {
+    return (
+      <span className="editableMobile" onClick={() => canUpdate && setEditing(true)} title={canUpdate ? 'Click to edit' : ''}>
+        {value || '-'}
+      </span>
+    );
+  }
+
+  async function save() {
+    if (draft !== value) await onSave(draft);
+    setEditing(false);
+  }
+
+  return (
+    <input
+      autoFocus
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={save}
+      onKeyDown={(event) => { if (event.key === 'Enter') save(); if (event.key === 'Escape') setEditing(false); }}
+      style={{ width: '110px' }}
+    />
+  );
+}
+
+function BillingPage({ taxpayers, filters, setFilters, areas, categories, togglePaid, canUpdate, sendBillWhatsApp, canSend, updateMobile }) {
   const [sendingId, setSendingId] = useState('');
   async function handleSend(item) {
     setSendingId(item.propertyNo);
@@ -440,7 +477,7 @@ function BillingPage({ taxpayers, filters, setFilters, areas, categories, toggle
                 <td>{item.propertyNo}</td>
                 <td><strong>{item.holderName || '-'}</strong><span>{item.description}</span></td>
                 <td>{item.area || '-'}</td>
-                <td>{item.mobile || '-'}</td>
+                <td><EditableMobile value={item.mobile} canUpdate={canUpdate} onSave={(mobile) => updateMobile(item, mobile)} /></td>
                 <td>{currency(item.pendingTax || item.currentTax)}</td>
                 <td><button disabled={!canUpdate} className={item.paid ? 'status paid' : 'status unpaid'} onClick={() => togglePaid(item)}>{item.paid ? 'Paid' : 'Unpaid'}</button></td>
                 <td className="actions">
